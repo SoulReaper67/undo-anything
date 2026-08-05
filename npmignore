@@ -1,0 +1,5 @@
+demo.html
+tests/
+jest.config.js
+coverage/
+.npmignore

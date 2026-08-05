@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>undo-anything.js — Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f0f0f7; display: flex; justify-content: center; padding: 40px 16px; }
+    .card { background: #fff; border-radius: 14px; padding: 32px; width: 100%; max-width: 560px; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+    h1 { font-size: 22px; margin-bottom: 6px; }
+    .sub { color: #666; font-size: 14px; margin-bottom: 24px; }
+    .badge { background: #ede9fe; color: #6c63ff; border-radius: 4px; padding: 2px 8px; font-size: 11px; margin-left: 6px; }
+
+    /* Sections */
+    .section { margin-bottom: 28px; }
+    .section h2 { font-size: 15px; font-weight: 600; color: #333; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #eee; }
+
+    /* Liste de tâches */
+    #task-list { list-style: none; display: flex; flex-direction: column; gap: 8px; min-height: 40px; }
+    .task {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px; background: #f8f8ff; border-radius: 8px;
+      border: 1px solid #e8e8ff; font-size: 14px;
+    }
+    .task .del {
+      background: none; border: none; color: #c0392b; cursor: pointer;
+      font-size: 16px; padding: 2px 6px; border-radius: 4px;
+      transition: background .2s;
+    }
+    .task .del:hover { background: #fdecea; }
+    .add-row { display: flex; gap: 8px; margin-top: 10px; }
+    .add-row input {
+      flex: 1; padding: 9px 12px; border: 1px solid #ddd;
+      border-radius: 8px; font-size: 14px; outline: none;
+      transition: border-color .2s;
+    }
+    .add-row input:focus { border-color: #6c63ff; }
+    .add-row button {
+      padding: 9px 16px; background: #6c63ff; color: #fff;
+      border: none; border-radius: 8px; cursor: pointer; font-size: 14px;
+      transition: background .2s;
+    }
+    .add-row button:hover { background: #5a52d5; }
+
+    /* Éditeur de texte */
+    #text-editor {
+      width: 100%; padding: 12px; border: 1px solid #ddd;
+      border-radius: 8px; font-size: 14px; outline: none;
+      font-family: inherit; resize: vertical; min-height: 80px;
+      transition: border-color .2s;
+    }
+    #text-editor:focus { border-color: #6c63ff; }
+
+    /* Boîtes colorées */
+    #color-boxes { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+    .box {
+      width: 50px; height: 50px; border-radius: 8px; cursor: pointer;
+      transition: transform .2s; border: 2px solid transparent;
+    }
+    .box:hover { transform: scale(1.1); }
+    .box-btns { display: flex; gap: 8px; }
+    .box-btns button {
+      padding: 7px 14px; border: none; border-radius: 8px;
+      font-size: 13px; cursor: pointer; transition: background .2s;
+    }
+    #add-box  { background: #6c63ff; color: #fff; }
+    #rem-box  { background: #fdecea; color: #c0392b; }
+
+    /* Actions custom */
+    .custom-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+    .custom-btns button {
+      padding: 8px 14px; border: none; border-radius: 8px;
+      font-size: 13px; cursor: pointer; background: #f0f0f7; color: #333;
+      transition: background .2s;
+    }
+    .custom-btns button:hover { background: #e0e0f0; }
+
+    /* Contrôles undo/redo */
+    .controls {
+      display: flex; gap: 8px; margin-bottom: 20px;
+      padding: 12px; background: #f8f8f8; border-radius: 10px;
+    }
+    .controls button {
+      flex: 1; padding: 9px; border: none; border-radius: 8px;
+      font-size: 13px; cursor: pointer; transition: background .2s;
+    }
+    #btn-undo { background: #ede9fe; color: #6c63ff; }
+    #btn-redo { background: #e8f5e9; color: #27ae60; }
+    #btn-clear { background: #fdecea; color: #c0392b; }
+    #btn-history { background: #f0f0f7; color: #666; }
+    .controls button:hover { filter: brightness(.95); }
+
+    /* Log */
+    #log {
+      background: #1e1e2e; border-radius: 8px; padding: 12px;
+      font-size: 12px; font-family: monospace; color: #a9dc76;
+      max-height: 120px; overflow-y: auto; margin-top: 20px;
+    }
+    .hint { font-size: 12px; color: #aaa; margin-top: 8px; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <h1>undo-anything.js <span class="badge">v0.1</span></h1>
+  <p class="sub">Ctrl+Z universel pour n'importe quelle action web.</p>
+
+  <!-- Contrôles -->
+  <div class="controls">
+    <button id="btn-undo">↩ Undo (Ctrl+Z)</button>
+    <button id="btn-redo">↪ Redo (Ctrl+Y)</button>
+    <button id="btn-clear">🗑 Clear</button>
+    <button id="btn-history">📋 History</button>
+  </div>
+
+  <!-- Section 1 : Liste de tâches -->
+  <div class="section">
+    <h2>📝 Liste de tâches — suppressions annulables</h2>
+    <ul id="task-list">
+      <li class="task"><span>Acheter du pain</span><button class="del">✕</button></li>
+      <li class="task"><span>Appeler le médecin</span><button class="del">✕</button></li>
+      <li class="task"><span>Finir le projet</span><button class="del">✕</button></li>
+    </ul>
+    <div class="add-row">
+      <input type="text" id="new-task" placeholder="Nouvelle tâche...">
+      <button id="add-task">Ajouter</button>
+    </div>
+  </div>
+
+  <!-- Section 2 : Éditeur de texte -->
+  <div class="section">
+    <h2>✏️ Champ texte — modifications annulables</h2>
+    <textarea id="text-editor" placeholder="Modifie ce texte, quitte le champ, puis Ctrl+Z...">Voici un texte modifiable. Clique ici, modifie, clique ailleurs, puis Ctrl+Z !</textarea>
+    <p class="hint">💡 Cliquer hors du champ enregistre la modification</p>
+  </div>
+
+  <!-- Section 3 : Boîtes colorées -->
+  <div class="section">
+    <h2>🎨 Éléments DOM — ajouts/suppressions annulables</h2>
+    <div id="color-boxes">
+      <div class="box" style="background:#6c63ff"></div>
+      <div class="box" style="background:#27ae60"></div>
+      <div class="box" style="background:#e74c3c"></div>
+    </div>
+    <div class="box-btns">
+      <button id="add-box">+ Ajouter</button>
+      <button id="rem-box">− Supprimer</button>
+    </div>
+  </div>
+
+  <!-- Section 4 : Actions custom -->
+  <div class="section">
+    <h2>⚡ Actions custom via Undo.push()</h2>
+    <div class="custom-btns">
+      <button id="custom-bg">Changer fond</button>
+      <button id="custom-title">Changer titre</button>
+      <button id="custom-count">Incrémenter compteur (<span id="counter">0</span>)</button>
+    </div>
+  </div>
+
+  <div id="log">En attente d'actions...</div>
+</div>
+
+<script type="module">
+  import Undo from './src/undo-anything.js'
+
+  const log = document.getElementById('log')
+  const addLog = (msg) => {
+    const line = document.createElement('div')
+    line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`
+    log.prepend(line)
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  Undo.watch('#task-list', {
+    shortcut: true,
+    toast: true,
+    onUndo: (a) => addLog(`↩ Undo: ${a.label}`),
+    onRedo: (a) => addLog(`↪ Redo: ${a.label}`)
+  })
+
+  Undo.watch('#text-editor', { shortcut: false, toast: true })
+  Undo.watch('#color-boxes', { shortcut: false, toast: true })
+
+  // ── Contrôles manuels ─────────────────────────────────────────────────────
+  document.getElementById('btn-undo').addEventListener('click', () => Undo.undo({ toast: true, onUndo: (a) => addLog(`↩ Undo: ${a.label}`) }))
+  document.getElementById('btn-redo').addEventListener('click', () => Undo.redo({ toast: true, onRedo: (a) => addLog(`↪ Redo: ${a.label}`) }))
+  document.getElementById('btn-clear').addEventListener('click', () => { Undo.clear(); addLog('🗑 Historique effacé') })
+  document.getElementById('btn-history').addEventListener('click', () => {
+    const h = Undo.history()
+    addLog(`📋 Pile: ${h.undo.length} undo / ${h.redo.length} redo`)
+  })
+
+  // ── Liste de tâches ───────────────────────────────────────────────────────
+  document.getElementById('task-list').addEventListener('click', (e) => {
+    if (e.target.classList.contains('del')) {
+      e.target.closest('.task').remove()
+      addLog('🗑 Tâche supprimée')
+    }
+  })
+
+  document.getElementById('add-task').addEventListener('click', () => {
+    const input = document.getElementById('new-task')
+    if (!input.value.trim()) return
+
+    const li = document.createElement('li')
+    li.className = 'task'
+    li.innerHTML = `<span>${input.value}</span><button class="del">✕</button>`
+    document.getElementById('task-list').appendChild(li)
+    addLog(`➕ Tâche ajoutée: "${input.value}"`)
+    input.value = ''
+  })
+
+  // ── Boîtes colorées ───────────────────────────────────────────────────────
+  const colors = ['#6c63ff','#27ae60','#e74c3c','#f39c12','#3498db','#9b59b6','#1abc9c']
+  let colorIndex = colors.length
+
+  document.getElementById('add-box').addEventListener('click', () => {
+    const box = document.createElement('div')
+    box.className = 'box'
+    box.style.background = colors[colorIndex % colors.length]
+    colorIndex++
+    document.getElementById('color-boxes').appendChild(box)
+    addLog('🎨 Boîte ajoutée')
+  })
+
+  document.getElementById('rem-box').addEventListener('click', () => {
+    const boxes = document.querySelectorAll('#color-boxes .box')
+    if (boxes.length === 0) return
+    boxes[boxes.length - 1].remove()
+    addLog('🗑 Boîte supprimée')
+  })
+
+  // ── Actions custom ────────────────────────────────────────────────────────
+  const card = document.querySelector('.card')
+  const bgColors = ['#fff', '#fff8f0', '#f0fff4', '#f0f0ff']
+  let bgIndex = 0
+
+  document.getElementById('custom-bg').addEventListener('click', () => {
+    const oldBg = card.style.background || '#fff'
+    const newBg = bgColors[(++bgIndex) % bgColors.length]
+    Undo.push({
+      label: 'Changement de fond',
+      undo: () => { card.style.background = oldBg },
+      redo: () => { card.style.background = newBg }
+    })
+    card.style.background = newBg
+    addLog(`🎨 Fond changé → ${newBg}`)
+  })
+
+  const title = document.querySelector('h1')
+  const titles = ['undo-anything.js', 'Incroyable non ?', 'Ctrl+Z partout !', 'TwinMi Studio 🚀']
+  let titleIndex = 0
+
+  document.getElementById('custom-title').addEventListener('click', () => {
+    const oldTitle = title.firstChild.textContent
+    const newTitle = titles[(++titleIndex) % titles.length] + ' '
+    Undo.push({
+      label: 'Changement de titre',
+      undo: () => { title.firstChild.textContent = oldTitle },
+      redo: () => { title.firstChild.textContent = newTitle }
+    })
+    title.firstChild.textContent = newTitle
+    addLog(`✏️ Titre changé`)
+  })
+
+  let counter = 0
+  const counterEl = document.getElementById('counter')
+
+  document.getElementById('custom-count').addEventListener('click', () => {
+    const old = counter
+    counter++
+    Undo.push({
+      label: `Compteur ${old} → ${counter}`,
+      undo: () => { counter = old; counterEl.textContent = old },
+      redo: () => { counter++; counterEl.textContent = counter }
+    })
+    counterEl.textContent = counter
+    addLog(`🔢 Compteur: ${counter}`)
+  })
+</script>
+</body>
+</html>

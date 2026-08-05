@@ -1,0 +1,50 @@
+{
+  "name": "undo-anything",
+  "version": "0.1.0",
+  "description": "Universal Ctrl+Z for any web action. Zero dependency, < 3kb gzip.",
+  "main": "src/undo-anything.js",
+  "module": "src/undo-anything.js",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./src/undo-anything.js",
+      "default": "./src/undo-anything.js"
+    }
+  },
+  "keywords": [
+    "undo",
+    "redo",
+    "ctrl-z",
+    "history",
+    "dom",
+    "zero-dependency",
+    "form",
+    "mutation-observer",
+    "web"
+  ],
+  "author": "TwinMi Studio",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SoulReaper67/undo-anything.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SoulReaper67/undo-anything/issues"
+  },
+  "homepage": "https://soulreaper67.github.io/undo-anything/",
+  "files": [
+    "src/undo-anything.js",
+    "src/undo-anything.min.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "devDependencies": {
+    "@jest/globals": "^30.4.1",
+    "jest": "^30.4.2",
+    "jest-environment-jsdom": "^30.4.1",
+    "jsdom": "^30.0.1"
+  },
+  "scripts": {
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+  }
+}
