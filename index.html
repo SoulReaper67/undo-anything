@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>undo-anything.js — Universal Ctrl+Z for the web</title>
+  <meta name="description" content="Universal Ctrl+Z for any web action. DOM mutations, inputs, custom actions. Zero dependency, 3kb gzip.">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f0f0f7; min-height: 100vh; }
+
+    /* Hero */
+    .hero {
+      background: linear-gradient(135deg, #1e1e2e 0%, #2d2b55 100%);
+      color: #fff; text-align: center; padding: 60px 20px 80px;
+    }
+    .hero h1 { font-size: 38px; font-weight: 700; margin-bottom: 12px; }
+    .hero h1 span { color: #6c63ff; }
+    .hero p { font-size: 17px; opacity: .8; margin-bottom: 28px; line-height: 1.6; }
+    .badges { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .badges a {
+      background: rgba(255,255,255,.1); color: #fff;
+      padding: 7px 16px; border-radius: 20px; font-size: 13px;
+      text-decoration: none; border: 1px solid rgba(255,255,255,.2);
+      transition: background .2s;
+    }
+    .badges a:hover { background: rgba(255,255,255,.2); }
+
+    /* Install bar */
+    .install-bar {
+      background: #13131f; color: #a9dc76;
+      font-family: monospace; font-size: 16px;
+      padding: 18px 24px; text-align: center; letter-spacing: .5px;
+    }
+    .install-bar span { color: #6c63ff; }
+
+    /* Container */
+    .container { max-width: 980px; margin: 0 auto; padding: 40px 20px; }
+
+    /* Features */
+    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+    @media (max-width: 700px) { .features { grid-template-columns: 1fr; } }
+    .feature {
+      background: #fff; border-radius: 12px; padding: 22px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.06); text-align: center;
+    }
+    .feature .icon { font-size: 30px; margin-bottom: 10px; }
+    .feature h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; color: #1e1e2e; }
+    .feature p { font-size: 13px; color: #888; line-height: 1.5; }
+
+    /* Grid */
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+
+    /* Cards */
+    .card {
+      background: #fff; border-radius: 14px; padding: 28px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.07); margin-bottom: 24px;
+    }
+    .card h2 { font-size: 16px; font-weight: 600; color: #1e1e2e; margin-bottom: 16px; }
+
+    /* Code */
+    .code {
+      background: #13131f; border-radius: 10px; padding: 20px;
+      font-family: monospace; font-size: 13px; line-height: 1.8;
+      color: #cdd6f4; overflow-x: auto; margin-bottom: 20px;
+    }
+    .kw  { color: #cba6f7; }
+    .fn  { color: #89b4fa; }
+    .str { color: #a6e3a1; }
+    .cm  { color: #585b70; }
+    .num { color: #fab387; }
+
+    /* Demo */
+    #task-list { list-style: none; display: flex; flex-direction: column; gap: 8px; min-height: 40px; }
+    .task {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px; background: #f8f8ff; border-radius: 8px;
+      border: 1px solid #e8e8ff; font-size: 14px; animation: fadeIn .2s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+    .task .del {
+      background: none; border: none; color: #c0392b;
+      cursor: pointer; font-size: 16px; padding: 2px 8px;
+      border-radius: 4px; transition: background .2s;
+    }
+    .task .del:hover { background: #fdecea; }
+    .add-row { display: flex; gap: 8px; margin-top: 10px; }
+    .add-row input {
+      flex: 1; padding: 9px 12px; border: 1px solid #ddd;
+      border-radius: 8px; font-size: 14px; outline: none;
+      transition: border-color .2s; font-family: inherit;
+    }
+    .add-row input:focus { border-color: #6c63ff; }
+    .add-row button, .controls button, #custom-count, #custom-bg, #custom-title {
+      padding: 9px 14px; background: #6c63ff; color: #fff;
+      border: none; border-radius: 8px; cursor: pointer;
+      font-size: 13px; transition: background .2s; font-family: inherit;
+    }
+    .add-row button:hover, #custom-count:hover, #custom-bg:hover, #custom-title:hover { background: #5a52d5; }
+
+    /* Controls */
+    .controls { display: flex; gap: 8px; margin-bottom: 16px; }
+    #btn-undo { background: #ede9fe; color: #6c63ff; }
+    #btn-redo { background: #e8f5e9; color: #27ae60; }
+    #btn-undo:hover { background: #ddd6fe; }
+    #btn-redo:hover { background: #dcfce7; }
+
+    /* Custom */
+    .custom-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+    #custom-bg    { background: #f39c12; }
+    #custom-title { background: #27ae60; }
+    #custom-count { background: #e74c3c; }
+
+    /* Shortcuts table */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+    th { color: #888; font-weight: 500; }
+    td code { background: #f0f0f7; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
+
+    /* Log */
+    #log {
+      background: #13131f; border-radius: 8px; padding: 12px;
+      font-size: 12px; font-family: monospace; color: #a9dc76;
+      max-height: 130px; overflow-y: auto; margin-top: 16px;
+    }
+    .hint { font-size: 12px; color: #aaa; margin-top: 8px; text-align: center; }
+
+    /* Footer */
+    footer { text-align: center; padding: 32px 20px; font-size: 13px; color: #aaa; }
+    footer a { color: #6c63ff; text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>undo-<span>anything</span>.js</h1>
+  <p>Universal <kbd style="background:rgba(255,255,255,.15);padding:2px 8px;border-radius:4px">Ctrl+Z</kbd> for any web action.<br>DOM mutations, inputs, custom actions. 2 lines of code.</p>
+  <div class="badges">
+    <a href="https://www.npmjs.com/package/undo-anything" target="_blank">📦 npm v0.1.0</a>
+    <a href="https://github.com/SoulReaper67/undo-anything" target="_blank">⭐ GitHub</a>
+    <a href="https://github.com/SoulReaper67/undo-anything/blob/main/README.md" target="_blank">📖 Docs</a>
+  </div>
+</div>
+
+<div class="install-bar"><span>$</span> npm install undo-anything</div>
+
+<div class="container">
+
+  <!-- Features -->
+  <div class="features">
+    <div class="feature">
+      <div class="icon">🧬</div>
+      <h3>DOM mutations</h3>
+      <p>Any element added or removed is automatically tracked and restorable</p>
+    </div>
+    <div class="feature">
+      <div class="icon">✏️</div>
+      <h3>Input changes</h3>
+      <p>Text field modifications are saved on blur and fully reversible</p>
+    </div>
+    <div class="feature">
+      <div class="icon">⚡</div>
+      <h3>Custom actions</h3>
+      <p>Push any action with your own undo/redo logic via <code>Undo.push()</code></p>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- Left : code + démo -->
+    <div>
+      <div class="card">
+        <h2>⚡ Quick start</h2>
+        <div class="code">
+<span class="kw">import</span> Undo <span class="kw">from</span> <span class="str">'undo-anything'</span>
+
+<span class="cm">// Watch any container</span>
+Undo.<span class="fn">watch</span>(<span class="str">'#my-list'</span>)
+
+<span class="cm">// Custom action</span>
+Undo.<span class="fn">push</span>({
+  label: <span class="str">'My action'</span>,
+  <span class="fn">undo</span>: () <span class="kw">=></span> revert(),
+  <span class="fn">redo</span>: () <span class="kw">=></span> apply(),
+})
+
+<span class="cm">// Manual control</span>
+Undo.<span class="fn">undo</span>()
+Undo.<span class="fn">redo</span>()
+Undo.<span class="fn">clear</span>()
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>🧪 Live demo</h2>
+
+        <div class="controls">
+          <button id="btn-undo">↩ Undo (Ctrl+Z)</button>
+          <button id="btn-redo">↪ Redo (Ctrl+Y)</button>
+        </div>
+
+        <p style="font-size:13px;color:#666;margin-bottom:10px">📝 Task list — delete items then Ctrl+Z</p>
+        <ul id="task-list">
+          <li class="task"><span>Buy groceries</span><button class="del">✕</button></li>
+          <li class="task"><span>Call the doctor</span><button class="del">✕</button></li>
+          <li class="task"><span>Finish the project</span><button class="del">✕</button></li>
+        </ul>
+        <div class="add-row">
+          <input type="text" id="new-task" placeholder="New task...">
+          <button id="add-task">Add</button>
+        </div>
+
+        <p style="font-size:13px;color:#666;margin:16px 0 8px">⚡ Custom actions</p>
+        <div class="custom-btns">
+          <button id="custom-bg">Change background</button>
+          <button id="custom-title">Change title</button>
+          <button id="custom-count">Counter (<span id="counter">0</span>)</button>
+        </div>
+
+        <p class="hint">💡 DevTools open? Try Ctrl+Z right now</p>
+        <div id="log">Waiting for actions...</div>
+      </div>
+    </div>
+
+    <!-- Right : options + shortcuts -->
+    <div>
+      <div class="card">
+        <h2>📋 All options</h2>
+        <div class="code" style="font-size:12px">
+Undo.<span class="fn">watch</span>(<span class="str">'#container'</span>, {
+  maxHistory: <span class="num">50</span>,
+  shortcut:   <span class="kw">true</span>,
+  toast:      <span class="kw">true</span>,
+  <span class="fn">onUndo</span>: (action) <span class="kw">=></span> {},
+  <span class="fn">onRedo</span>: (action) <span class="kw">=></span> {},
+})
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>⌨️ Keyboard shortcuts</h2>
+        <table>
+          <tr><th>Shortcut</th><th>Action</th></tr>
+          <tr><td><code>Ctrl+Z</code> / <code>Cmd+Z</code></td><td>Undo last action</td></tr>
+          <tr><td><code>Ctrl+Y</code></td><td>Redo</td></tr>
+          <tr><td><code>Ctrl+Shift+Z</code></td><td>Redo (alt)</td></tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>✅ What gets tracked</h2>
+        <table>
+          <tr><th>Action</th><th></th></tr>
+          <tr><td>Element removed</td><td>✅ restored at position</td></tr>
+          <tr><td>Element added</td><td>✅ removed on undo</td></tr>
+          <tr><td>Attribute changed</td><td>✅ reverted</td></tr>
+          <tr><td>Input blur</td><td>✅ value reverted</td></tr>
+          <tr><td>Custom push()</td><td>✅ anything you define</td></tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>⚛️ React</h2>
+        <div class="code" style="font-size:12px">
+<span class="kw">import</span> Undo <span class="kw">from</span> <span class="str">'undo-anything'</span>
+<span class="kw">import</span> { useEffect } <span class="kw">from</span> <span class="str">'react'</span>
+
+<span class="kw">function</span> <span class="fn">TaskList</span>() {
+  <span class="fn">useEffect</span>(() <span class="kw">=></span> {
+    Undo.<span class="fn">watch</span>(<span class="str">'#list'</span>)
+    <span class="kw">return</span> () <span class="kw">=></span> Undo.<span class="fn">unwatch</span>(<span class="str">'#list'</span>)
+  }, [])
+  <span class="kw">return</span> &lt;<span class="fn">ul</span> id=<span class="str">"list"</span>&gt;...&lt;/<span class="fn">ul</span>&gt;
+}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Made with ☕ by <a href="https://github.com/SoulReaper67" target="_blank">TwinMi Studio</a>
+  · <a href="https://github.com/SoulReaper67/undo-anything" target="_blank">GitHub</a>
+  · <a href="https://www.npmjs.com/package/undo-anything" target="_blank">npm</a>
+  · MIT License
+</footer>
+
+<script type="module">
+  import Undo from 'https://cdn.jsdelivr.net/npm/undo-anything@0.1.0/src/undo-anything.js'
+
+  const log = document.getElementById('log')
+  const addLog = (msg) => {
+    const line = document.createElement('div')
+    line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`
+    log.prepend(line)
+  }
+
+  Undo.watch('#task-list', {
+    shortcut: true,
+    toast: true,
+    onUndo: (a) => addLog(`↩ Undo: ${a.label}`),
+    onRedo: (a) => addLog(`↪ Redo: ${a.label}`)
+  })
+
+  document.getElementById('btn-undo').addEventListener('click', () => Undo.undo({ toast: true, onUndo: (a) => addLog(`↩ ${a.label}`) }))
+  document.getElementById('btn-redo').addEventListener('click', () => Undo.redo({ toast: true, onRedo: (a) => addLog(`↪ ${a.label}`) }))
+
+  document.getElementById('task-list').addEventListener('click', (e) => {
+    if (e.target.classList.contains('del')) {
+      e.target.closest('.task').remove()
+      addLog('🗑 Task deleted')
+    }
+  })
+
+  document.getElementById('add-task').addEventListener('click', () => {
+    const input = document.getElementById('new-task')
+    if (!input.value.trim()) return
+    const li = document.createElement('li')
+    li.className = 'task'
+    li.innerHTML = `<span>${input.value}</span><button class="del">✕</button>`
+    document.getElementById('task-list').appendChild(li)
+    addLog(`➕ Task added: "${input.value}"`)
+    input.value = ''
+  })
+
+  const card = document.querySelector('.card')
+  const bgColors = ['#fff', '#fff8f0', '#f0fff4', '#f0f0ff']
+  let bgIndex = 0
+  document.getElementById('custom-bg').addEventListener('click', () => {
+    const oldBg = card.style.background || '#fff'
+    const newBg = bgColors[(++bgIndex) % bgColors.length]
+    Undo.push({ label: 'Background change', undo: () => { card.style.background = oldBg }, redo: () => { card.style.background = newBg } })
+    card.style.background = newBg
+    addLog(`🎨 Background → ${newBg}`)
+  })
+
+  const h1 = document.querySelector('h1')
+  const titles = ['undo-<span>anything</span>.js', 'Amazing right?', 'Ctrl+Z everywhere!', 'TwinMi Studio 🚀']
+  let ti = 0
+  document.getElementById('custom-title').addEventListener('click', () => {
+    const oldHTML = h1.innerHTML
+    const newHTML = titles[(++ti) % titles.length]
+    Undo.push({ label: 'Title change', undo: () => { h1.innerHTML = oldHTML }, redo: () => { h1.innerHTML = newHTML } })
+    h1.innerHTML = newHTML
+    addLog('✏️ Title changed')
+  })
+
+  let count = 0
+  const counterEl = document.getElementById('counter')
+  document.getElementById('custom-count').addEventListener('click', () => {
+    const old = count
+    count++
+    Undo.push({ label: `Counter ${old} → ${count}`, undo: () => { count = old; counterEl.textContent = old }, redo: () => { count++; counterEl.textContent = count } })
+    counterEl.textContent = count
+    addLog(`🔢 Counter: ${count}`)
+  })
+</script>
+</body>
+</html>
